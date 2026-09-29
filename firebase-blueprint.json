@@ -17,6 +17,19 @@
       },
       "required": ["uid", "name", "email", "role", "status"]
     },
+    "AdminSlot": {
+      "title": "AdminSlot",
+      "description": "Single exclusive slot for Master Admin registration and ownership lock",
+      "type": "object",
+      "properties": {
+        "isClaimed": { "type": "boolean" },
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "maxLength": 128 },
+        "adminName": { "type": "string", "maxLength": 100 },
+        "claimedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["isClaimed"]
+    },
     "Vehicle": {
       "title": "Vehicle",
       "description": "Commercial delivery lorry fleet asset",
@@ -103,6 +116,10 @@
     }
   },
   "firestore": {
+    "/system_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AdminSlot" },
+      "description": "Single admin slot ownership record and system parameters"
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "User profiles and RBAC permissions"

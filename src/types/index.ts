@@ -13,6 +13,15 @@ export interface UserProfile {
   avatarUrl?: string;
   approvedBy?: string;
   createdAt: string;
+  lastLogin?: string;
+}
+
+export interface AdminSlot {
+  isClaimed: boolean;
+  adminUid?: string;
+  adminEmail?: string;
+  adminName?: string;
+  claimedAt?: string;
 }
 
 export type DeliveryStatus =

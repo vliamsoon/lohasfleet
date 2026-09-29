@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 export const AuthModal: React.FC = () => {
-  const { loginWithGoogle, switchUserRole, usersList, currentUser, isApproved } = useApp();
+  const { loginWithGoogle, switchUserRole, usersList, currentUser, isApproved, adminSlot, setShowAdminModal } = useApp();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -22,7 +22,7 @@ export const AuthModal: React.FC = () => {
   // If user is logged in but pending approval
   if (currentUser && !isApproved) {
     return (
-      <div className="fixed inset-0 bg-[#fcf8ff] z-[100] flex items-center justify-center p-6">
+      <div className="fixed inset-0 bg-[#fcf8ff] z-[100] flex flex-col items-center justify-center p-6">
         <div className="bg-white max-w-md w-full rounded-3xl p-8 shadow-2xl border border-[#e5e1e8] text-center">
           <div className="w-16 h-16 rounded-full bg-[#ffdbcb] text-[#9f4200] flex items-center justify-center mx-auto mb-4">
             <span className="material-symbols-outlined text-[32px]">hourglass_top</span>
@@ -65,6 +65,21 @@ export const AuthModal: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Footer Admin Link */}
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => setShowAdminModal(true)}
+            className="inline-flex items-center gap-1.5 text-xs text-[#574238] hover:text-[#1c1b20] font-semibold bg-white/80 border border-[#e5e1e8] px-4 py-2 rounded-full shadow-xs"
+          >
+            <span className="material-symbols-outlined text-[15px] text-[#9f4200]">
+              {adminSlot.isClaimed ? 'lock' : 'lock_open'}
+            </span>
+            <span>
+              {adminSlot.isClaimed ? 'Master Admin Login (Footer Link)' : 'Admin Sign Up (1 Slot Open)'}
+            </span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -72,7 +87,7 @@ export const AuthModal: React.FC = () => {
   // If no user is logged in
   if (!currentUser) {
     return (
-      <div className="fixed inset-0 bg-[#fcf8ff]/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+      <div className="fixed inset-0 bg-[#fcf8ff]/95 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-6">
         <div className="bg-white max-w-lg w-full rounded-3xl p-8 shadow-2xl border border-[#e5e1e8]">
           <div className="text-center mb-6">
             <div className="w-14 h-14 rounded-full bg-[#ff7f35] text-white flex items-center justify-center mx-auto mb-3 shadow-md">
@@ -141,6 +156,30 @@ export const AuthModal: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Footer Admin Link (Strictly placed in the footer per user request) */}
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => setShowAdminModal(true)}
+            className="inline-flex items-center gap-2 text-xs text-[#574238] hover:text-[#1c1b20] font-semibold bg-white/90 border border-[#e5e1e8] px-4 py-2 rounded-full shadow-xs hover:border-[#1c3ae7] transition-all"
+          >
+            <span className="material-symbols-outlined text-[16px] text-[#9f4200]">
+              {adminSlot.isClaimed ? 'lock' : 'lock_open'}
+            </span>
+            <span>
+              {adminSlot.isClaimed ? 'Master Admin Login (Footer Link)' : 'Admin Sign Up (1 Slot Open)'}
+            </span>
+            {adminSlot.isClaimed ? (
+              <span className="font-mono-data text-[10px] px-2 py-0.5 rounded-full bg-[#dfe0ff] text-[#000d60] font-bold">
+                Claimed
+              </span>
+            ) : (
+              <span className="font-mono-data text-[10px] px-2 py-0.5 rounded-full bg-[#ffdad6] text-[#93000a] font-bold">
+                1 Slot Available
+              </span>
+            )}
+          </button>
         </div>
       </div>
     );

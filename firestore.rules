@@ -14,10 +14,16 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // System settings & exclusive single admin slot
+    match /system_settings/{settingId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // User profile permissions
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == 'williamsoon1994@gmail.com');
+      allow write: if isSignedIn();
     }
 
     // Vehicle fleet inventory

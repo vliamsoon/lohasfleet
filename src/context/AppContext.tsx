@@ -6,10 +6,12 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   getDocs,
+  getDoc,
 } from 'firebase/firestore';
 import { auth, db, googleProvider, handleFirestoreError, OperationType, testConnection } from '../lib/firebase';
-import { UserProfile, DeliveryOrder, Trip, Vehicle, AuditFlag, UserRole, Department } from '../types';
+import { UserProfile, DeliveryOrder, Trip, Vehicle, AuditFlag, UserRole, Department, AdminSlot } from '../types';
 import { INITIAL_USERS, INITIAL_VEHICLES, INITIAL_DELIVERY_ORDERS, INITIAL_TRIPS, INITIAL_AUDIT_FLAGS } from '../data/mockData';
 
 interface AppContextType {
@@ -25,6 +27,17 @@ interface AppContextType {
   auditFlags: AuditFlag[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  // Admin Slot & Admin Portal
+  adminSlot: AdminSlot;
+  isAdminLoggedIn: boolean;
+  showAdminModal: boolean;
+  setShowAdminModal: (show: boolean) => void;
+  claimAdminSlot: (adminName: string, adminEmail: string, phone?: string) => Promise<boolean>;
+  adminLogin: (adminEmail: string) => Promise<boolean>;
+  adminLogout: () => void;
+  updateUserByAdmin: (uid: string, updates: Partial<UserProfile>) => Promise<void>;
+  deleteUserByAdmin: (uid: string) => Promise<void>;
+  createUserByAdmin: (newUser: Omit<UserProfile, 'uid' | 'createdAt'>) => Promise<void>;
   // Auth & Roles
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -50,7 +63,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseAuthUser, setFirebaseAuthUser] = useState<User | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(INITIAL_USERS[0]); // Default to William Soon (Owner)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(INITIAL_USERS[0]); // Default to William Soon
   const [usersList, setUsersList] = useState<UserProfile[]>(INITIAL_USERS);
   const [vehicles, setVehicles] = useState<Vehicle[]>(INITIAL_VEHICLES);
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>(INITIAL_DELIVERY_ORDERS);
@@ -58,6 +71,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditFlags, setAuditFlags] = useState<AuditFlag[]>(INITIAL_AUDIT_FLAGS);
   const [activeTab, setActiveTab] = useState<string>('mileage-and-fuel-audit');
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+
+  // Single Admin Slot state
+  // Check if saved in localStorage or initialize with 1 slot available
+  const [adminSlot, setAdminSlot] = useState<AdminSlot>(() => {
+    const saved = localStorage.getItem('lohas_admin_slot');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    // Initially unclaimed so the user can create their admin account in the single available slot!
+    return {
+      isClaimed: false,
+    };
+  });
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
 
   // Connection test on mount
   useEffect(() => {
@@ -69,12 +101,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseAuthUser(user);
       if (user) {
-        // Check if user exists in usersList
         const existing = usersList.find((u) => u.uid === user.uid || u.email === user.email);
         if (existing) {
           setCurrentUser(existing);
         } else {
-          // Create new pending user profile
           const isOwnerEmail = user.email === 'williamsoon1994@gmail.com';
           const newProfile: UserProfile = {
             uid: user.uid,
@@ -85,6 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: isOwnerEmail ? 'active' : 'pending',
             avatarUrl: user.photoURL || undefined,
             createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
           };
 
           try {
@@ -108,6 +139,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     async function initFirestoreData() {
       try {
+        // Check admin slot in Firestore
+        const adminSlotDoc = await getDoc(doc(db, 'system_settings', 'admin_slot'));
+        if (adminSlotDoc.exists()) {
+          const slotData = adminSlotDoc.data() as AdminSlot;
+          setAdminSlot(slotData);
+          localStorage.setItem('lohas_admin_slot', JSON.stringify(slotData));
+        }
+
         const tripsSnap = await getDocs(collection(db, 'trips'));
         if (tripsSnap.empty) {
           // Seed initial data
@@ -164,6 +203,125 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  // Admin Single-Slot Claiming Logic
+  const claimAdminSlot = async (adminName: string, adminEmail: string, phone?: string): Promise<boolean> => {
+    if (adminSlot.isClaimed) {
+      throw new Error('Registration locked: The single exclusive Master Admin slot has already been claimed. Nobody else is allowed to create an admin account.');
+    }
+
+    const claimedAt = new Date().toISOString();
+    const adminUid = `admin_${Date.now()}`;
+    const newSlot: AdminSlot = {
+      isClaimed: true,
+      adminUid,
+      adminEmail: adminEmail.trim().toLowerCase(),
+      adminName: adminName.trim(),
+      claimedAt,
+    };
+
+    // Save to Firestore and localStorage
+    try {
+      await setDoc(doc(db, 'system_settings', 'admin_slot'), newSlot);
+    } catch (e) {
+      console.warn('Firestore setDoc fallback for admin_slot:', e);
+    }
+    localStorage.setItem('lohas_admin_slot', JSON.stringify(newSlot));
+    setAdminSlot(newSlot);
+
+    // Create / Update Admin User Profile
+    const adminProfile: UserProfile = {
+      uid: adminUid,
+      name: adminName.trim(),
+      email: adminEmail.trim().toLowerCase(),
+      phone: phone || '+60 12-388 9912',
+      role: 'owner',
+      department: 'general',
+      status: 'active',
+      approvedBy: 'Master Admin Root Slot',
+      createdAt: claimedAt,
+      lastLogin: claimedAt,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    };
+
+    setUsersList((prev) => {
+      const filtered = prev.filter((u) => u.email.toLowerCase() !== adminProfile.email);
+      return [adminProfile, ...filtered];
+    });
+
+    setCurrentUser(adminProfile);
+    setIsAdminLoggedIn(true);
+
+    return true;
+  };
+
+  const adminLogin = async (email: string): Promise<boolean> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!adminSlot.isClaimed) {
+      throw new Error('Admin slot is currently unclaimed. Please use the Sign Up form to claim the single Master Admin slot.');
+    }
+
+    if (adminSlot.adminEmail?.toLowerCase() !== cleanEmail) {
+      throw new Error(`Unauthorized: '${cleanEmail}' is not the registered Master Admin for this system.`);
+    }
+
+    // Find admin user in list
+    const adminUser = usersList.find((u) => u.email.toLowerCase() === cleanEmail) || {
+      uid: adminSlot.adminUid || 'admin_master',
+      name: adminSlot.adminName || 'System Admin',
+      email: adminSlot.adminEmail,
+      role: 'owner' as UserRole,
+      department: 'general' as Department,
+      status: 'active' as const,
+      createdAt: adminSlot.claimedAt || new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+
+    setCurrentUser(adminUser);
+    setIsAdminLoggedIn(true);
+    return true;
+  };
+
+  const adminLogout = () => {
+    setIsAdminLoggedIn(false);
+  };
+
+  const updateUserByAdmin = async (uid: string, updates: Partial<UserProfile>) => {
+    setUsersList((prev) =>
+      prev.map((u) => (u.uid === uid ? { ...u, ...updates } : u))
+    );
+
+    try {
+      await updateDoc(doc(db, 'users', uid), updates);
+    } catch (e) {
+      console.warn('Firestore updateDoc fallback for user:', e);
+    }
+  };
+
+  const deleteUserByAdmin = async (uid: string) => {
+    setUsersList((prev) => prev.filter((u) => u.uid !== uid));
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch (e) {
+      console.warn('Firestore deleteDoc fallback for user:', e);
+    }
+  };
+
+  const createUserByAdmin = async (newUser: Omit<UserProfile, 'uid' | 'createdAt'>) => {
+    const uid = `user_${Date.now()}`;
+    const fullUser: UserProfile = {
+      ...newUser,
+      uid,
+      createdAt: new Date().toISOString(),
+      lastLogin: 'Never',
+    };
+    setUsersList((prev) => [fullUser, ...prev]);
+    try {
+      await setDoc(doc(db, 'users', uid), fullUser);
+    } catch (e) {
+      console.warn('Firestore setDoc fallback for new user:', e);
+    }
+  };
+
   const loginWithGoogle = async () => {
     try {
       const res = await signInWithPopup(auth, googleProvider);
@@ -196,13 +354,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await signOut(auth);
     setFirebaseAuthUser(null);
     setCurrentUser(null);
+    setIsAdminLoggedIn(false);
   };
 
   const switchUserRole = (userId: string) => {
     const target = usersList.find((u) => u.uid === userId);
     if (target) {
       setCurrentUser(target);
-      // If switching to driver, switch tab to driver view or route planner
       if (target.role === 'logistic') {
         setActiveTab('route-planner');
       }
@@ -363,14 +521,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const optimizeRoute = async (tripId: string) => {
-    // Reorder waypoints to achieve optimized 16.5% reduction
     await new Promise((res) => setTimeout(res, 600));
     setTrips((prev) =>
       prev.map((t) => {
         if (t.tripId === tripId) {
           return {
             ...t,
-            plannedKm: 62.4, // Optimized down from 74.8 km (-12.4 km)
+            plannedKm: 62.4,
           };
         }
         return t;
@@ -405,6 +562,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         auditFlags,
         activeTab,
         setActiveTab,
+        adminSlot,
+        isAdminLoggedIn,
+        showAdminModal,
+        setShowAdminModal,
+        claimAdminSlot,
+        adminLogin,
+        adminLogout,
+        updateUserByAdmin,
+        deleteUserByAdmin,
+        createUserByAdmin,
         loginWithGoogle,
         logout,
         switchUserRole,
