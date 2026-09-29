@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // User profile permissions
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == 'williamsoon1994@gmail.com');
+    }
+
+    // Vehicle fleet inventory
+    match /vehicles/{vehicleId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Delivery Orders
+    match /deliveryOrders/{doId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Trips with odometer and GPS
+    match /trips/{tripId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Finance & Audit Flags
+    match /auditFlags/{flagId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

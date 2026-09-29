@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role-based access control and department assignment",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "role": { "type": "string", "enum": ["owner", "management", "logistic"] },
+        "department": { "type": "string", "enum": ["sales", "finance", "ops", "general"] },
+        "status": { "type": "string", "enum": ["pending", "active", "inactive"] },
+        "approvedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["uid", "name", "email", "role", "status"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Commercial delivery lorry fleet asset",
+      "type": "object",
+      "properties": {
+        "plateNo": { "type": "string", "maxLength": 20 },
+        "name": { "type": "string", "maxLength": 60 },
+        "type": { "type": "string", "maxLength": 60 },
+        "fuelType": { "type": "string", "enum": ["Diesel B10", "Diesel Euro 5 B7", "RON95"] },
+        "tankLitres": { "type": "number" },
+        "benchmarkKmPerL": { "type": "number" },
+        "currentOdometerKm": { "type": "number" },
+        "active": { "type": "boolean" },
+        "chillerTemp": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["plateNo", "name", "fuelType", "currentOdometerKm", "active"]
+    },
+    "DeliveryOrder": {
+      "title": "DeliveryOrder",
+      "description": "Organic wholesale consignment delivery order",
+      "type": "object",
+      "properties": {
+        "doNumber": { "type": "string", "maxLength": 50 },
+        "doDate": { "type": "string", "maxLength": 30 },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "addressText": { "type": "string", "maxLength": 300 },
+        "postcode": { "type": "string", "maxLength": 10 },
+        "state": { "type": "string", "maxLength": 50 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "itemsSummary": { "type": "string", "maxLength": 200 },
+        "weightKg": { "type": "number" },
+        "promisedDate": { "type": "string", "maxLength": 30 },
+        "windowStart": { "type": "string", "maxLength": 20 },
+        "windowEnd": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "out_for_delivery", "arrived", "delivered", "partial", "failed", "returned"] },
+        "tripId": { "type": "string", "maxLength": 50 },
+        "stopSeq": { "type": "number" },
+        "ocrConfidence": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["doNumber", "customerName", "addressText", "postcode", "status"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "Dispatched delivery journey with odometer and GPS reconciliation",
+      "type": "object",
+      "properties": {
+        "tripId": { "type": "string", "maxLength": 50 },
+        "tripDate": { "type": "string", "maxLength": 30 },
+        "vehicleId": { "type": "string", "maxLength": 50 },
+        "vehiclePlate": { "type": "string", "maxLength": 30 },
+        "driverId": { "type": "string", "maxLength": 128 },
+        "driverName": { "type": "string", "maxLength": 100 },
+        "plannedKm": { "type": "number" },
+        "startOdoKm": { "type": "number" },
+        "endOdoKm": { "type": "number" },
+        "odoDeltaKm": { "type": "number" },
+        "gpsSnappedKm": { "type": "number" },
+        "variancePct": { "type": "number" },
+        "status": { "type": "string", "enum": ["planned", "in_progress", "completed", "flagged", "cleared"] },
+        "auditStatus": { "type": "string", "enum": ["open_flag", "cleared", "normal"] },
+        "fuelPaidRm": { "type": "number" },
+        "detourNote": { "type": "string", "maxLength": 500 },
+        "auditorNote": { "type": "string", "maxLength": 500 },
+        "clearedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["tripId", "tripDate", "vehiclePlate", "driverName", "status"]
+    },
+    "AuditFlag": {
+      "title": "AuditFlag",
+      "description": "Reconciliation exception flag for finance and owner review",
+      "type": "object",
+      "properties": {
+        "tripId": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "enum": ["mileage_variance", "odo_gap", "geofence", "fuel_efficiency", "gps_gap"] },
+        "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+        "title": { "type": "string", "maxLength": 150 },
+        "detail": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["open", "cleared", "escalated"] },
+        "clearedBy": { "type": "string", "maxLength": 100 },
+        "clearNote": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["tripId", "type", "severity", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles and RBAC permissions"
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "Fleet lorry vehicle inventory"
+    },
+    "/deliveryOrders/{doId}": {
+      "schema": { "$ref": "#/entities/DeliveryOrder" },
+      "description": "Consignment delivery orders and proof of delivery state"
+    },
+    "/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/Trip" },
+      "description": "Lorry trips and GPS/odometer audit records"
+    },
+    "/auditFlags/{flagId}": {
+      "schema": { "$ref": "#/entities/AuditFlag" },
+      "description": "Finance audit flags and resolutions"
+    }
+  }
+}

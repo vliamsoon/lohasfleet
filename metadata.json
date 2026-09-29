@@ -1,0 +1,11 @@
+{
+  "name": "LOHAS Fleet - Wholesale Logistics Management",
+  "description": "Logistics management system for LOHAS Organic Malaysia: lorry odometer & GPS reconciliation, geocoded route planning, DO photo inspection, and finance fuel audits.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
